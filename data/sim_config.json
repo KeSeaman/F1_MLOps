@@ -1,0 +1,17 @@
+{
+    "base_lap_time": 92.0,
+    "compounds": {
+        "Soft": {
+            "degradation": 0.1,
+            "pace_offset": 0.0
+        },
+        "Medium": {
+            "degradation": 0.06,
+            "pace_offset": 0.8
+        },
+        "Hard": {
+            "degradation": 0.03,
+            "pace_offset": 1.5
+        }
+    }
+}

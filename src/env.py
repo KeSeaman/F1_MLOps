@@ -47,20 +47,18 @@ class F1GymEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         # Initialize drivers
-        # In a real scenario, we'd load this from a config or data
         drivers = []
-        compounds = [TyreCompound.Soft, TyreCompound.Medium, TyreCompound.Hard]
         
         # Hero
         drivers.append(DriverState(
             driver_id="HAM", position=2, lap_number=0, tyre_compound=TyreCompound.Medium,
-            tyre_age=0, gap_to_leader=1.5, last_lap_time=0.0, pit_stops=0, status="OnTrack"
+            tyre_age=0, gap_to_leader=1.5, last_lap_time=80.0, pit_stops=0, status="OnTrack" # Init last_lap_time to decent value
         ))
         
         # Rival
         drivers.append(DriverState(
             driver_id="VER", position=1, lap_number=0, tyre_compound=TyreCompound.Medium,
-            tyre_age=0, gap_to_leader=0.0, last_lap_time=0.0, pit_stops=0, status="OnTrack"
+            tyre_age=0, gap_to_leader=0.0, last_lap_time=80.0, pit_stops=0, status="OnTrack"
         ))
         
         self.sim = F1Env(self.config, drivers)
@@ -71,15 +69,8 @@ class F1GymEnv(gym.Env):
         action_map = {0: "StayOut", 1: "PUSH", 2: "SAVE", 3: "PIT_SOFT", 4: "PIT_MEDIUM", 5: "PIT_HARD"}
         hero_action = action_map[action]
         
-        # Simple opponent logic (VER)
-        # If tyre age > 25, pit. Else push.
-        ver_state = self.sim.step({"HAM": "StayOut"})["VER"] # Peek state? No, step advances.
-        # We need to decide actions BEFORE stepping.
-        # But we can't peek easily without exposing more methods.
-        # For now, simple static logic based on internal tracking or just random.
-        
+        # Simple opponent logic
         opponent_action = "StayOut" 
-        # In a real MARL, we'd query the opponent agent here.
         
         actions = {
             "HAM": hero_action,
@@ -89,14 +80,25 @@ class F1GymEnv(gym.Env):
         new_states = self.sim.step(actions)
         hero_state = new_states["HAM"]
         
-        # Reward: Negative lap time (faster is better) + Position bonus
-        reward = -hero_state.last_lap_time
+        # Reward: Time gain relative to base time (positive is good)
+        # Instead of raw negative time, use improvement over base pace
+        # Prevent 0.0 or weird values
+        lap_time = hero_state.last_lap_time
+        if lap_time <= 0.0:
+            lap_time = self.config.base_lap_time
+            
+        reward = (self.config.base_lap_time - lap_time)
+        
         if hero_state.position == 1:
-            reward += 10.0
+            reward += 2.0 # Smaller bonus to keep scale reasonable
             
         done = hero_state.lap_number >= self.config.total_laps
         
-        return self._get_obs("HAM"), reward, done, False, {}
+        obs = self._get_obs("HAM")
+        # Safety check for NaNs in obs
+        obs = np.nan_to_num(obs, nan=0.0, posinf=1000.0, neginf=-1000.0)
+        
+        return obs, reward, done, False, {}
         
     def _get_obs(self, driver_id):
         drivers = self.sim.get_drivers()
@@ -105,17 +107,19 @@ class F1GymEnv(gym.Env):
             
         state = drivers[driver_id]
         
-        # Convert enum to int (simpler for now)
-        # Assuming TyreCompound has a value or we map it
-        # Rust enum to Python: it's an object. We need to map it.
-        # For now, just use 0.
+        # Normalize simple features to keep them approx [-1, 1] or [0, 1]
+        tyre_age_norm = float(state.tyre_age) / 20.0
+        gap_norm = np.tanh(float(state.gap_to_leader) / 10.0) # Tanh to bound gap
+        pos_norm = float(state.position) / 20.0
+        lap_norm = float(state.lap_number) / 66.0
+        
         compound_val = 0.0 
         
         return np.array([
-            float(state.tyre_age),
-            float(state.gap_to_leader),
-            float(state.position),
+            tyre_age_norm,
+            gap_norm,
+            pos_norm,
             compound_val,
-            float(state.lap_number)
+            lap_norm
         ], dtype=np.float32) 
 
