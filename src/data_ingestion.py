@@ -14,8 +14,8 @@ def fetch_and_process_data():
     os.makedirs('data/cache', exist_ok=True)
     fastf1.Cache.enable_cache('data/cache')
 
-    # Load session
-    session = fastf1.get_session(2021, 'Spanish Grand Prix', 'R')
+    # Load session - 2024 Bahrain Grand Prix
+    session = fastf1.get_session(2024, 'Bahrain', 'R')
     session.load()
 
     laps = session.laps
