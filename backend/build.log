@@ -1,0 +1,55 @@
+       Fresh target-lexicon v0.12.16
+       Fresh once_cell v1.21.3
+       Fresh unicode-ident v1.0.22
+       Fresh cfg-if v1.0.4
+       Fresh autocfg v1.5.0
+       Fresh scopeguard v1.2.0
+       Fresh smallvec v1.15.1
+       Fresh heck v0.4.1
+       Fresh lock_api v0.4.14
+       Fresh indoc v2.0.7
+       Fresh ryu v1.0.20
+       Fresh unindent v0.2.4
+       Fresh itoa v1.0.15
+       Fresh libc v0.2.178
+       Fresh pyo3-build-config v0.21.2
+       Fresh proc-macro2 v1.0.103
+       Fresh zerocopy v0.8.31
+       Fresh serde_core v1.0.228
+       Fresh portable-atomic v1.11.1
+       Fresh memchr v2.7.6
+       Fresh quote v1.0.42
+       Fresh getrandom v0.2.16
+       Fresh ppv-lite86 v0.2.21
+       Fresh parking_lot_core v0.9.12
+       Fresh memoffset v0.9.1
+       Fresh serde_json v1.0.145
+       Fresh syn v2.0.111
+   Compiling pyo3-ffi v0.21.2
+       Fresh rand_core v0.6.4
+       Fresh parking_lot v0.12.5
+       Fresh pyo3-macros-backend v0.21.2
+       Fresh serde_derive v1.0.228
+       Fresh rand_chacha v0.3.1
+       Fresh pyo3-macros v0.21.2
+   Compiling rand v0.8.5
+       Fresh serde v1.0.228
+     Running `/home/captc/Devwork/F1_MLOps/target/debug/build/pyo3-ffi-48202bc7e68052a3/build-script-build`
+     Running `/home/captc/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name rand --edition=2018 /home/captc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.8.5/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 'feature="alloc"' --cfg 'feature="default"' --cfg 'feature="getrandom"' --cfg 'feature="libc"' --cfg 'feature="rand_chacha"' --cfg 'feature="std"' --cfg 'feature="std_rng"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("alloc", "default", "getrandom", "libc", "log", "min_const_gen", "nightly", "packed_simd", "rand_chacha", "serde", "serde1", "simd_support", "small_rng", "std", "std_rng"))' -C metadata=b8d24d33c40e1f2a -C extra-filename=-2f52bfcf33adbf3e --out-dir /home/captc/Devwork/F1_MLOps/target/debug/deps -L dependency=/home/captc/Devwork/F1_MLOps/target/debug/deps --extern libc=/home/captc/Devwork/F1_MLOps/target/debug/deps/liblibc-9067ec6747c7515d.rmeta --extern rand_chacha=/home/captc/Devwork/F1_MLOps/target/debug/deps/librand_chacha-8d349fadf699123b.rmeta --extern rand_core=/home/captc/Devwork/F1_MLOps/target/debug/deps/librand_core-5bffab261a768128.rmeta --cap-lints allow`
+error: failed to run custom build command for `pyo3-ffi v0.21.2`
+
+Caused by:
+  process didn't exit successfully: `/home/captc/Devwork/F1_MLOps/target/debug/build/pyo3-ffi-48202bc7e68052a3/build-script-build` (exit status: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=PYO3_CROSS
+  cargo:rerun-if-env-changed=PYO3_CROSS_LIB_DIR
+  cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_VERSION
+  cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_IMPLEMENTATION
+  cargo:rerun-if-env-changed=PYO3_PRINT_CONFIG
+  cargo:rerun-if-env-changed=PYO3_USE_ABI3_FORWARD_COMPATIBILITY
+
+  --- stderr
+  error: the configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.12)
+  = help: please check if an updated version of PyO3 is available. Current version: 0.21.2
+  = help: set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 to suppress this check and build anyway using the stable ABI
+warning: build failed, waiting for other jobs to finish...
