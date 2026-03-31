@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environment
+.venv/
+
+# Rust build
+target/
+
+# UV cache
+.uv_cache/
+
+# Data cache
+data/cache/
+
+# OS
+.DS_Store

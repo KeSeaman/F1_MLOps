@@ -75,14 +75,40 @@ def train():
     checkpoint_dir = algo.save("models/ppo_f1")
     print(f"\nModel saved to: {checkpoint_dir}")
     
-    # Save results for README
-    with open("training_results.txt", "w") as f:
+    # Save results in both text and JSON formats
+    import json
+    from datetime import datetime
+    
+    avg_reward = sum(results) / len(results) if results else 0
+    
+    # Structured JSON for Artefact.md
+    training_data = {
+        "timestamp": datetime.now().isoformat(),
+        "algorithm": "PPO",
+        "iterations": 5,
+        "network": "FC 64x64",
+        "learning_rate": 0.0001,
+        "train_batch_size": 2000,
+        "num_workers": 3,
+        "framework": "PyTorch",
+        "per_iteration": [
+            {"iteration": i+1, "mean_reward": round(r, 2)}
+            for i, r in enumerate(results)
+        ],
+        "average_reward": round(avg_reward, 2),
+    }
+    
+    with open("data/training_results.json", "w") as f:
+        json.dump(training_data, f, indent=2)
+    print("Results saved to data/training_results.json")
+    
+    # Also save human-readable text
+    with open("data/training_results.txt", "w") as f:
         f.write("=== F1 PPO Training Results ===\n")
         for i, r in enumerate(results):
             f.write(f"Iteration {i+1}: Reward = {r:.2f}\n")
-        avg_reward = sum(results) / len(results) if results else 0
         f.write(f"\nAverage Reward: {avg_reward:.2f}\n")
-    print("Results saved to training_results.txt")
+    print("Results saved to data/training_results.txt")
     
     ray.shutdown()
 
