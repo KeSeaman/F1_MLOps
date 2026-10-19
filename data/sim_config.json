@@ -1,17 +1,357 @@
 {
-    "base_lap_time": 92.0,
-    "compounds": {
-        "Soft": {
-            "degradation": 0.1,
-            "pace_offset": 0.0
-        },
-        "Medium": {
-            "degradation": 0.06,
-            "pace_offset": 0.8
-        },
-        "Hard": {
-            "degradation": 0.03,
-            "pace_offset": 1.5
-        }
+  "race": {
+    "year": 2021,
+    "event": "Spanish Grand Prix",
+    "total_laps": 66
+  },
+  "first_lap": 2,
+  "total_laps": 65,
+  "base_lap_time": 84.04421058406751,
+  "fuel_effect": -0.044444021106897935,
+  "pit_loss": 23.43687218438216,
+  "lap_noise_sd": 0.5090331999592432,
+  "dirty_air_gap": 2.0,
+  "dirty_air_loss": 0.5329995788941773,
+  "compounds": [
+    {
+      "name": "MEDIUM",
+      "pace_offset": 0.0,
+      "degradation": 0.08526954577628487,
+      "clean_laps": 412
+    },
+    {
+      "name": "SOFT",
+      "pace_offset": 0.4150128487833746,
+      "degradation": 0.053857048731828394,
+      "clean_laps": 241
     }
+  ],
+  "drivers": {
+    "ALO": {
+      "pace_offset": 0.4382666482501776,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 8.465000000000146,
+      "pit_stops": [
+        {
+          "lap": 21,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 61,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "BOT": {
+      "pace_offset": -1.3224558288484047,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 3.9839999999999236,
+      "pit_stops": [
+        {
+          "lap": 23,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 53,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": 26.610000000000582
+    },
+    "GAS": {
+      "pace_offset": -0.23234810754516388,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 9.840000000000146,
+      "pit_stops": [
+        {
+          "lap": 18,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 47,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "GIO": {
+      "pace_offset": 0.5534291042472717,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 11.108999999999924,
+      "pit_stops": [
+        {
+          "lap": 8,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 39,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "HAM": {
+      "pace_offset": -1.8573941277172565,
+      "start_compound": "SOFT",
+      "start_wear": 5.0,
+      "start_gap": 1.512000000000171,
+      "pit_stops": [
+        {
+          "lap": 28,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 42,
+          "compound": "MEDIUM"
+        }
+      ],
+      "finish_gap": 0.0
+    },
+    "LAT": {
+      "pace_offset": 1.085980417725267,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 12.98700000000008,
+      "pit_stops": [
+        {
+          "lap": 9,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 27,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 50,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "LEC": {
+      "pace_offset": -0.7337179381308943,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 3.2519999999999527,
+      "pit_stops": [
+        {
+          "lap": 28,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 58,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": 54.615999999999985
+    },
+    "MAZ": {
+      "pace_offset": 2.2191618244530247,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 13.635999999999967,
+      "pit_stops": [
+        {
+          "lap": 22,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 42,
+          "compound": "MEDIUM"
+        }
+      ],
+      "finish_gap": null
+    },
+    "MSC": {
+      "pace_offset": 1.3318551777694125,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 11.450000000000273,
+      "pit_stops": [
+        {
+          "lap": 23,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 50,
+          "compound": "MEDIUM"
+        }
+      ],
+      "finish_gap": null
+    },
+    "NOR": {
+      "pace_offset": 0.2587337238409049,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 7.769000000000233,
+      "pit_stops": [
+        {
+          "lap": 23,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 51,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "OCO": {
+      "pace_offset": 0.3238508139528733,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 6.585000000000036,
+      "pit_stops": [
+        {
+          "lap": 23,
+          "compound": "MEDIUM"
+        }
+      ],
+      "finish_gap": null
+    },
+    "PER": {
+      "pace_offset": -1.2318865516699589,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 5.753000000000156,
+      "pit_stops": [
+        {
+          "lap": 27,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 57,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": 63.67100000000028
+    },
+    "RAI": {
+      "pace_offset": 0.1930954329233856,
+      "start_compound": "MEDIUM",
+      "start_wear": 1.0,
+      "start_gap": 10.557999999999993,
+      "pit_stops": [
+        {
+          "lap": 37,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "RIC": {
+      "pace_offset": -0.30688232370685853,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 4.893000000000029,
+      "pit_stops": [
+        {
+          "lap": 25,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 46,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": 73.76800000000003
+    },
+    "RUS": {
+      "pace_offset": 0.7487763083271233,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 11.894000000000233,
+      "pit_stops": [
+        {
+          "lap": 9,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 28,
+          "compound": "MEDIUM"
+        }
+      ],
+      "finish_gap": null
+    },
+    "SAI": {
+      "pace_offset": -0.7363285412529876,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 7.309999999999945,
+      "pit_stops": [
+        {
+          "lap": 22,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 46,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": 74.67000000000007
+    },
+    "STR": {
+      "pace_offset": 0.30085331958184724,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 8.861000000000331,
+      "pit_stops": [
+        {
+          "lap": 22,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 39,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    },
+    "VER": {
+      "pace_offset": -1.6146430920359478,
+      "start_compound": "SOFT",
+      "start_wear": 4.0,
+      "start_gap": 0.0,
+      "pit_stops": [
+        {
+          "lap": 24,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 60,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": 15.84100000000035
+    },
+    "VET": {
+      "pace_offset": 0.5816537398364119,
+      "start_compound": "SOFT",
+      "start_wear": 1.0,
+      "start_gap": 9.307999999999993,
+      "pit_stops": [
+        {
+          "lap": 21,
+          "compound": "MEDIUM"
+        },
+        {
+          "lap": 38,
+          "compound": "SOFT"
+        }
+      ],
+      "finish_gap": null
+    }
+  },
+  "fit": {
+    "clean_laps": 653,
+    "drivers": 19,
+    "residual_sd": 0.5090331999592432,
+    "pit_stops_measured": 34,
+    "compounds_without_enough_data": []
+  }
 }

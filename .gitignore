@@ -17,3 +17,10 @@ data/cache/
 
 # OS
 .DS_Store
+
+# Built extension
+f1_mlops/*.so
+
+# marimo session cache
+__marimo__/
+.pytest_cache/

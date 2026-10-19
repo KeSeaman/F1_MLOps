@@ -1,111 +1,85 @@
-# The Undercut Oracle: F1 MLOps Portfolio
+# F1 MLOps: Pit-Strategy RL on a Calibrated Race Simulator
 
-A production-ready Multi-Agent Reinforcement Learning (MARL) system for F1 race strategy optimization, built with a polyglot architecture combining Rust's performance with Python's ML ecosystem.
+A reinforcement-learning agent chooses Lewis Hamilton's pit stops and tyre management for the
+2021 Spanish Grand Prix, racing Max Verstappen, who repeats his real strategy. The race simulator
+is written in Rust and calibrated from the real race's lap data.
 
-## 🏎️ Overview
+- **Data**: FastF1 lap timing for the 2021 Spanish GP (any race can be ingested).
+- **Simulator** (Rust, PyO3): tyre wear by compound, fuel burn, pit loss, push/save modes,
+  dirty air and overtaking difficulty. Runs ~330k simulated laps per second from Python.
+- **Calibration**: one least-squares model across all drivers' clean laps, fitted on free air,
+  with fuel separated from tyre wear.
+- **Training**: PPO in a single process, about 15 s on a laptop CPU.
+- **Evaluation**: the trained policy against Hamilton's real strategy and against an exhaustive
+  search over all one- and two-stop plans.
+- **Dashboard**: marimo + Plotly, replaying any simulated race lap by lap.
 
-This project demonstrates end-to-end MLOps for F1 race strategy, featuring:
-- **Real F1 Data**: 2024 Bahrain Grand Prix via FastF1
-- **Multi-Agent RL**: PPO agents learning pit stop strategies
-- **High-Performance Simulation**: Rust backend with PyO3 bindings
-- **Interactive Dashboard**: Real-time race visualization with Marimo
+## Results
 
-## 🏗️ Architecture
+200 simulated races per strategy, same random seeds for each (`f1-mlops evaluate`):
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         F1 MLOps Stack                          │
-├──────────────┬──────────────────────────────────────────────────┤
-│  Frontend    │ Marimo Dashboard (Plotly visualizations)         │
-├──────────────┼──────────────────────────────────────────────────┤
-│  ML/RL       │ Ray RLlib (PPO), PyTorch, Gymnasium              │
-├──────────────┼──────────────────────────────────────────────────┤
-│  Features    │ Feast Feature Store, Modin (parallel pandas)     │
-├──────────────┼──────────────────────────────────────────────────┤
-│  Backend     │ Rust Simulation Engine (PyO3, serde, rand)       │
-├──────────────┼──────────────────────────────────────────────────┤
-│  Data        │ FastF1 API → Parquet → Feature Store             │
-└──────────────┴──────────────────────────────────────────────────┘
-```
+| Strategy | Race time (s) | Gap to VER (s) |
+|---|---|---|
+| Hamilton's real strategy (Medium at laps 28 and 42) | 5378.7 ± 3.7 | −24.5 |
+| Best fixed pit plan (Medium at laps 21 and 44) | 5373.5 ± 4.0 | −30.8 |
+| Best fixed pit plan + computed push/save | 5363.6 ± 3.8 | −39.8 |
+| **Trained PPO policy** | **5363.4 ± 3.7** | **−40.1** |
 
-## 📁 Project Structure
+- The policy learns a two-stop strategy: Medium at about lap 17 and lap 42, saving tyres early in
+  each stint and pushing in its last few laps. It matches the best plan found by search
+  (5363.4 s vs 5363.6 s), without being told how tyres work, but does not beat it. With the
+  rival on a fixed script, there is little to react to.
+- Most of the gain over the real strategy comes from push/save tyre management, whose costs
+  are assumptions rather than calibrated values (see [Limitations](#limitations)).
+- **Simulator accuracy**: replaying both drivers' real strategies gives Hamilton a 24.5 s win;
+  the real margin was 15.8 s. Same winner, but the simulator flatters Hamilton by ~9 s, which
+  is within the uncertainty of his pace estimate (he spent most of the race in Verstappen's
+  dirty air, leaving few free-air laps to fit).
 
-```
-F1_MLOps/
-├── backend/              # Rust simulation engine
-│   └── src/
-│       ├── lib.rs        # PyO3 module exports
-│       ├── types.rs      # TyreCompound, DriverState, RaceConfig
-│       └── sim.rs        # Race simulation logic
-├── src/                  # Python ML pipeline
-│   ├── data_ingestion.py # FastF1 → Parquet
-│   ├── env.py            # Gymnasium environment wrapper
-│   ├── train_agent.py    # Ray RLlib PPO training
-│   └── calibrate.py      # Model calibration from real data
-├── notebooks/
-│   └── dashboard.py      # Marimo interactive dashboard
-├── data/                 # Cached data and parquet files
-├── models/               # Trained model checkpoints
-└── notes/
-    └── Artefact.md       # Detailed results & implementation notes
-```
+## Quick start
 
-## 🚀 Quick Start
+Needs [uv](https://docs.astral.sh/uv/) and a Rust toolchain. `uv sync` builds the Rust
+extension and installs CPU-only PyTorch.
 
-### Prerequisites
-- Python 3.12
-- Rust toolchain (for backend compilation)
-- uv package manager
-
-### 1. Install Dependencies
 ```bash
 uv sync
+uv run f1-mlops ingest          # 2021 Spanish GP by default: --year, --event
+uv run f1-mlops calibrate       # -> data/sim_config.json
+uv run f1-mlops train           # -> models/policy.pt (~15 s)
+uv run f1-mlops evaluate        # -> models/evaluation.json and the table above
+uv run marimo run notebooks/dashboard.py
+uv run pytest
 ```
 
-### 2. Build Rust Backend
-```bash
-source .venv/bin/activate
-maturin develop
+The calibrated config, trained policy and evaluation are committed, so the dashboard runs
+without the first four steps.
+
+## Project structure
+
+```
+backend/src/sim.rs     Race simulator (pure Rust)
+backend/src/lib.rs     Python bindings: f1_mlops._sim.Race
+f1_mlops/ingest.py     FastF1 -> data/laps.parquet, data/race.json
+f1_mlops/calibrate.py  Lap-time model fit -> data/sim_config.json
+f1_mlops/env.py        Scenario, Gymnasium environment, batched environment
+f1_mlops/train.py      Single-process PPO
+f1_mlops/evaluate.py   Strategy comparison and exhaustive plan search
+f1_mlops/cli.py        f1-mlops command
+notebooks/dashboard.py marimo dashboard
+tests/                 Simulator, environment, calibration and pipeline tests
 ```
 
-### 3. Run Full Pipeline
-```bash
-# Ingest real F1 data (2024 Bahrain GP)
-python src/data_ingestion.py
+## Limitations
 
-# Calibrate simulation from real data
-python src/calibrate.py
+- **One rival, one race.** The other 18 cars are not simulated, and the rival's strategy is
+  fixed, so the agent can't react to a rival's stops or provoke them.
+- **Not calibrated:** push/save pace and wear (±0.3 s for 50% more / 40% less wear), and the
+  1.0 s pace advantage needed to overtake. These are in `ASSUMPTIONS` in `f1_mlops/env.py`.
+- **Simplified race:** no safety cars, weather, or starts (the simulation begins after lap 1).
+  Tyre wear is linear, with no cliff.
+- **Unusual tyre data:** this race's data shows Mediums 0.4 s/lap quicker than Softs when new,
+  but wearing faster. This holds with per-lap fixed effects too, so it reflects the race, not
+  a fitting artefact.
 
-# Train the RL agent (5 iterations PPO)
-python src/train_agent.py
-```
-
-### 4. Launch Dashboard
-```bash
-marimo edit notebooks/dashboard.py
-```
-
-## 🔧 Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Simulation** | Rust (PyO3, serde, rand) |
-| **ML/RL** | Ray RLlib, PyTorch, Gymnasium |
-| **Data** | FastF1, Modin, Parquet, Feast |
-| **Dashboard** | Marimo, Plotly |
-| **Package Mgmt** | uv, maturin |
-
-## 📊 Results & Details
-
-For detailed training results, performance analysis, implementation deep-dives, and development guides, see **[notes/Artefact.md](notes/Artefact.md)**.
-
-## 📝 License
-
-MIT
-
-## 🙏 Acknowledgments
-
-- [FastF1](https://github.com/theOehrly/Fast-F1) — F1 telemetry data
-- [Ray RLlib](https://docs.ray.io/en/latest/rllib/) — Reinforcement learning
-- [Marimo](https://marimo.io/) — Reactive notebooks
-- [PyO3](https://pyo3.rs/) — Rust-Python bindings
+See [notes/Artefact.md](notes/Artefact.md) for the model, calibration results and design
+decisions.

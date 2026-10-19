@@ -1,254 +1,119 @@
-# The Undercut Oracle — Implementation Artefact
+# Implementation Notes
 
-> Detailed implementation notes, training results, performance analysis, and development guide for the F1 MLOps project.
+## Simulator (`backend/src/sim.rs`)
 
----
+Each lap, for every driver:
 
-## 📡 Data Pipeline
-
-### Source
-- **Race**: 2024 Bahrain Grand Prix (Round 1)
-- **API**: [FastF1](https://github.com/theOehrly/Fast-F1) v3.7.0
-- **Output**: `data/laps.parquet`
-
-### Ingestion Process (`src/data_ingestion.py`)
-1. Fetches full race telemetry via FastF1 API
-2. Converts to Modin DataFrame for parallel processing
-3. Computes derived features:
-   - `LapTimeSeconds` — Timedelta → float conversion
-   - `TotalTime` — Cumulative race time per driver
-   - `GapToLeader` — Real-time delta to P1
-   - `EventTimestamp` — For Feast feature store integration
-4. Saves to Parquet format
-
-### Data Schema
-| Column | Type | Description |
-|--------|------|-------------|
-| `Driver` | str | 3-letter driver code |
-| `LapNumber` | int | Race lap number |
-| `LapTimeSeconds` | float | Lap time in seconds |
-| `TyreLife` | float | Laps on current tyre set |
-| `Compound` | str | SOFT / MEDIUM / HARD |
-| `Position` | int | Race position |
-| `GapToLeader` | float | Time delta to P1 (seconds) |
-| `EventTimestamp` | datetime | Absolute timestamp |
-
----
-
-## 🔧 Simulation Calibration
-
-### Process (`src/calibrate.py`)
-Derives realistic tyre degradation parameters from the 2024 Bahrain GP data:
-1. Filters clean laps (< 120s, excludes safety car / pit laps)
-2. Linear regression per compound: `LapTime = Base + Degradation × TyreAge`
-3. Outputs `data/sim_config.json`
-
-### Calibrated Parameters
-
-| Compound | Degradation (s/lap) | Pace Offset (s) | Description |
-|----------|-------------------|-----------------|-------------|
-| **Soft** | 0.10 | 0.00 | Fastest but degrades quickly |
-| **Medium** | 0.06 | 0.80 | Balanced option |
-| **Hard** | 0.03 | 1.50 | Slowest but most durable |
-
-**Base Lap Time**: 92.0s (fastest clean lap from real data)
-
----
-
-## 🦀 Rust Backend Deep-Dive
-
-### Architecture (`backend/src/`)
-
-The simulation engine is written in Rust for performance and exposed to Python via PyO3.
-
-#### Types (`types.rs`)
-```rust
-pub enum TyreCompound { Soft, Medium, Hard, Intermediate, Wet }
-
-pub struct DriverState {
-    driver_id: String,
-    position: u32,
-    lap_number: u32,
-    tyre_compound: TyreCompound,
-    tyre_age: u32,
-    gap_to_leader: f32,
-    last_lap_time: f32,
-    pit_stops: u32,
-    status: String,  // "OnTrack", "Pit", "Retired"
-}
-
-pub struct RaceConfig {
-    total_laps: u32,
-    track_length_km: f32,
-    base_lap_time: f32,
-    tyre_configs: HashMap<TyreCompound, TyreConfig>,
-}
+```
+lap_time = base_lap_time + driver_pace + compound_offset
+         + degradation[compound] * wear + fuel_effect * laps_completed
+         + mode_pace_delta + noise(sd = lap_noise_sd)
 ```
 
-#### Simulation Logic (`sim.rs`)
-Each step:
-1. **Pit Stop Handling**: Resets tyre age, switches compound, adds ~22s penalty
-2. **Lap Time Calculation**: `base + pace_offset + (tyre_age × degradation) + random_variance(±0.2s)`
-3. **State Update**: Updates gap, lap number, tyre age
+- **Wear** increases by 1 per normal lap, 1.5 when pushing and 0.6 when saving. The
+  simulator also tracks tyre age in laps.
+- **A pit stop** (`PIT_<COMPOUND>`) adds `pit_loss` to that lap and fits new tyres for the
+  next lap.
+- **Traffic.** Cars are processed in running order.
+  - A car that starts the lap within `dirty_air_gap` of the car ahead loses `dirty_air_loss`.
+  - A car that would finish the lap ahead of the car in front passes only if it was at least
+    `overtake_delta` faster over the lap. Otherwise it finishes `follow_gap` behind.
+- **Positions and gaps** come from total race time.
+- **Noise** comes from a seeded `StdRng`, so a seed reproduces a race exactly.
 
-#### PyO3 Exports (`lib.rs`)
-Exposes `F1Env`, `RaceConfig`, `DriverState`, `TyreCompound`, `TyreConfig` as Python classes.
+The Python API is `Race(config_json, seed)` with `step({driver: action})`, `driver(id)`,
+`standings()`, `lap` and `finished`. Unknown actions, compounds or drivers raise errors.
 
----
+## Calibration (`f1_mlops/calibrate.py`)
 
-## 🧠 Gymnasium Environment
+**Clean laps**:
+- green flag, not in- or out-laps, not lap 1, accurate, not deleted;
+- within 5% of the driver's median;
+- more than 2 s behind the car in front (free air).
 
-### Design (`src/env.py`)
+**Model**: one least-squares fit across all drivers. The terms are a pace for each driver, a
+pace offset and degradation rate for each compound, and a linear lap-number term for fuel.
 
-Wraps the Rust backend into a Gymnasium-compatible environment for RL training.
-
-### Observation Space (5-dimensional)
-
-| Index | Feature | Normalization | Range |
-|-------|---------|--------------|-------|
-| 0 | Tyre Age | `÷ 20.0` | [0, ~2.5] |
-| 1 | Gap to Leader | `tanh(gap / 10.0)` | [-1, 1] |
-| 2 | Position | `÷ 20.0` | [0, 1] |
-| 3 | Tyre Compound | Encoded as float | 0.0 |
-| 4 | Lap Number | `÷ 66.0` | [0, 1] |
-
-### Action Space (Discrete, 6 actions)
-
-| Action ID | Description | Effect |
-|-----------|-------------|--------|
-| 0 | Stay Out | Continue racing, tyre age +1 |
-| 1 | Push | Aggressive pace (mapped to StayOut + tyre wear) |
-| 2 | Save Tyres | Conservative pace |
-| 3 | Pit - Soft | Pit stop → new Soft tyres (-22s) |
-| 4 | Pit - Medium | Pit stop → new Medium tyres (-22s) |
-| 5 | Pit - Hard | Pit stop → new Hard tyres (-22s) |
-
-### Reward Function
-```
-reward = base_lap_time - actual_lap_time    # Time improvement
-       + 2.0 if position == 1               # P1 bonus
-```
-- NaN safety: Observations clamped via `np.nan_to_num`
-- Invalid lap times default to `base_lap_time`
-
-### Race Setup
-- **Hero**: HAM (P2, Medium tyres, 1.5s gap)
-- **Rival**: VER (P1, Medium tyres, leader)
-- **Track**: 66 laps, 4.675 km/lap
-
----
-
-## 📊 Training Configuration & Results
-
-### PPO Hyperparameters
+**2021 Spanish GP results** (`data/sim_config.json`):
 
 | Parameter | Value |
-|-----------|-------|
-| Algorithm | PPO (Proximal Policy Optimization) |
-| Framework | PyTorch |
-| Network | 2-layer FC (64 × 64) |
-| Learning Rate | 0.0001 |
-| Train Batch Size | 2000 |
-| VF Clip Param | 100.0 |
-| Gradient Clipping | 0.5 |
-| Env Runners | 3 (parallel workers) |
-| Iterations | 5 |
+|---|---|
+| Clean laps / drivers | 653 / 19 |
+| Medium: offset, degradation | 0.00 s, 0.085 s/lap |
+| Soft: offset, degradation | +0.42 s, 0.054 s/lap |
+| Fuel effect | −0.044 s per lap completed |
+| Pit loss (median of 34 green-flag stops) | 23.4 s |
+| Dirty-air loss (median, within 2 s) | 0.53 s/lap |
+| Lap noise (robust residual SD) | 0.51 s |
+| HAM / VER pace vs field | −1.86 / −1.62 s/lap |
 
-### Training Results
+**Why the design changed:**
 
-> **Note**: Results below are from the training run. Run `python src/train_agent.py` to reproduce.
+| Earlier issue | Effect | Fix |
+|---|---|---|
+| Fitted each compound alone, without a fuel term | Fuel burn made softs show negative wear | Separate fuel term |
+| Fitted on all laps | Laps in DRS trains made tyres look slower | Fit on free-air laps |
+| No dirty-air term | Replaying the real strategies, the simulator had HAM winning by 29 s (real: 15.8 s) | Dirty-air term: now 24.5 s |
 
-<!-- TRAINING_RESULTS_START -->
-| Iteration | Mean Reward | Description |
-|-----------|-------------|-------------|
-| 1 | — | Initial random exploration |
-| 2 | — | Agent begins learning pit windows |
-| 3 | — | Strategy patterns emerging |
-| 4 | — | Tyre management refinement |
-| 5 | — | Converged policy |
+The compound estimates were cross-checked with a fixed effect per lap in place of the linear
+fuel term, which also absorbs track evolution. They change by less than 0.07 s.
 
-*Run `python src/train_agent.py` to populate with actual metrics.*
-<!-- TRAINING_RESULTS_END -->
+## Environment (`f1_mlops/env.py`)
 
-### Performance Analysis
+- **Scenario**: the hero (HAM by default) against a rival (VER) who repeats their real pit stops.
+  Both start from their real lap-1 order, gap and tyre wear.
+- **Actions**: `STAY`, `PUSH`, `SAVE`, plus `PIT_<compound>` for each compound with enough data.
+- **Observation**:
+  - fraction of the race left;
+  - own tyre wear, pit stops, and whether two compounds have been used yet;
+  - gap to the rival;
+  - the rival's wear and pit stops;
+  - own compound, one-hot.
+- **Reward**: (base lap time − lap time) × 0.1, so the return is minus the race time. Finishing
+  without using two dry compounds costs 60 s.
+- **Two front ends**:
+  - `StrategyEnv` is the standard Gymnasium environment and passes `check_env`.
+  - `BatchEnv` steps many races together for training.
 
-- **Tyre Management**: The PPO agent learns to optimize tyre life, pitting just before severe degradation kicks in
-- **Undercut Strategy**: In simulation, the agent frequently pits 1-2 laps before the rival (VER), executing undercut maneuvers for track position
-- **Reward Stability**: Mean reward should consistently increase across iterations, indicating successful policy optimization
+## Training (`f1_mlops/train.py`)
 
----
+- **Algorithm**: PPO with separate 64×64 tanh actor and critic networks.
+- **Batches**: 64 races per batch. Every race lasts 65 laps, so each rollout is exactly 64
+  complete races, with no bootstrapping across episode boundaries.
+- **Settings**: undiscounted GAE (λ 0.95), 4 epochs × 4 minibatches, learning rate 3e-4,
+  entropy coefficient 0.01.
+- **Default run**: 300 iterations, 1.25M simulated laps, about 15 s on 4 CPU threads.
+  Convergence comes after about 150 iterations.
 
-## 🖥️ Dashboard
+**Why not Ray RLlib.** Measured on this environment, for 416k simulated laps:
 
-### Usage (`notebooks/dashboard.py`)
-```bash
-marimo edit notebooks/dashboard.py
-```
+| Setup | Start-up | Training time | Throughput |
+|---|---|---|---|
+| Single-process PPO (this repo) | ~0 s | 4.9 s | ~85k laps/s |
+| RLlib PPO, 4 env runners | 5.7 s | 34.3 s | 12k laps/s |
+| RLlib PPO, no env runners | 7.1 s | 226.5 s | 1.8k laps/s |
 
-### Features
-- Loads trained PPO model (or defaults to random policy if checkpoint missing)
-- Interactive **"Race Step"** button for lap-by-lap simulation
-- **"Reset Race"** button to reinitialize
-- Real-time display:
-  - Current lap, position, gap to leader
-  - Tyre age and compound
-  - Last lap time
-  - Agent's chosen action and reward
+The simulator is cheap and the network is tiny, so distributed sampling only adds overhead.
+For the same reason, a GPU wouldn't help. Dropping Ray also cut the environment from 8 GB to
+1.6 GB, together with CPU-only PyTorch.
 
----
+## Evaluation (`f1_mlops/evaluate.py`)
 
-## 🛠️ Development Guide
+Strategies are compared on the same 200 seeds:
 
-### Rebuild Backend After Changes
-When modifying Rust files in `backend/src/`:
-```bash
-maturin develop          # Debug build
-maturin develop --release  # Optimized build
-```
+- **real**: the hero's real pit stops.
+- **best_fixed**: the best of every one- and two-stop plan that uses two compounds (6,112
+  plans). Plans are ranked on a noise-free race, then the top 20 are re-scored on 50 noisy
+  races.
+- **best_fixed_managed**: the same search, with push/save chosen per lap by their total cost
+  over the rest of the stint (ignoring traffic).
+- **ppo**: the trained policy, always taking its most likely action.
 
-**Triggers for rebuild**: Changes to `DriverState`, `RaceConfig`, simulation logic, or PyO3 exports.
+## Dashboard (`notebooks/dashboard.py`)
 
-### Feature Store (Feast)
-```bash
-feast -c feature_repo apply                                    # Register features
-feast -c feature_repo materialize-incremental $(date +%Y-%m-%dT%H:%M:%S)  # Materialize
-```
+`uv run marimo run notebooks/dashboard.py` shows:
 
-### Verify Backend Import
-```python
-from f1_sim_backend import F1Env, RaceConfig, DriverState, TyreCompound, TyreConfig
-print(TyreCompound.Soft)     # TyreCompound.Soft
-print(TyreCompound.Medium)   # TyreCompound.Medium
-```
-
-### Running Tests
-```bash
-python src/data_ingestion.py                                     # Data pipeline
-python -c "from env import F1GymEnv; env = F1GymEnv(); print(env.reset())"  # Environment
-python src/train_agent.py                                        # Training (short run)
-```
-
-### Debugging Tips
-
-**Backend not importing:**
-```bash
-pip show f1-mlops            # Check if module is installed
-rm -rf target/ && maturin develop  # Rebuild from scratch
-```
-
-**Ray initialization issues:**
-```python
-import ray
-ray.shutdown()  # Reset any existing instance
-ray.init(ignore_reinit_error=True)
-```
-
-**FastF1 cache issues:**
-```bash
-rm -rf data/cache/*          # Clear corrupted cache
-```
-
-**UV cache issues (read-only filesystem):**
-```bash
-UV_CACHE_DIR=.uv_cache uv sync   # Use local cache directory
-```
+- the evaluation table;
+- a seed slider;
+- for that race, under each strategy: the gap to the rival, lap times, and the decision taken
+  each lap.

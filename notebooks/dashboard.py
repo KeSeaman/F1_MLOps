@@ -1,141 +1,130 @@
 import marimo
 
-__generated_with = "0.8.0"
-app = marimo.App()
+__generated_with = "0.25.2"
+app = marimo.App(width="medium")
+
 
 @app.cell
-def __():
+def _():
+    import json
+
     import marimo as mo
     import pandas as pd
     import plotly.express as px
-    import numpy as np
-    import sys
-    import os
-    
-    # Add backend to path if not installed
-    # sys.path.append("../backend") 
-    # But we installed it via maturin develop
-    
-    from f1_sim_backend import F1Env, RaceConfig, DriverState, TyreCompound
-    return F1Env, RaceConfig, DriverState, TyreCompound, mo, np, os, pd, px, sys
+
+    from f1_mlops.env import Scenario
+    from f1_mlops.evaluate import plan_chooser, policy_chooser, run_race, search_fixed_plans
+    from f1_mlops.train import load_policy
+    return (Scenario, json, load_policy, mo, pd, plan_chooser, policy_chooser, px, run_race,
+            search_fixed_plans)
+
 
 @app.cell
-def __(mo):
-    mo.md(r"""# 🏎️ The Undercut Oracle: Live Strategy Dashboard""")
-    return
+def _(Scenario, json, load_policy, mo):
+    root = mo.notebook_dir().parent
+    scenario = Scenario.load(root / "data" / "sim_config.json")
+    policy = load_policy(root / "models" / "policy.pt", scenario)
+    evaluation_path = root / "models" / "evaluation.json"
+    evaluation = json.loads(evaluation_path.read_text()) if evaluation_path.exists() else None
+    race = scenario.calibration["race"]
+    mo.md(
+        f"""
+        # Pit strategy: {scenario.hero} vs {scenario.rival}, {race['year']} {race['event']}
 
-@app.cell
-def __(mo):
-    # Load Environment and Agent
-    import ray
-    from ray.rllib.algorithms.ppo import PPOConfig
-    from env import F1GymEnv
-    import os
-    
-    # Init Ray if needed
-    if not ray.is_initialized():
-        ray.init(ignore_reinit_error=True, logging_level='ERROR', include_dashboard=False)
-        
-    # Recreate Config to restore agent
-    # Note: In real app, load from checkpoint config
-    config = (
-        PPOConfig()
-        .api_stack(enable_rl_module_and_learner=False, enable_env_runner_and_connector_v2=False)
-        .environment(env=F1GymEnv)
-        .framework("torch")
-        .env_runners(num_env_runners=1)
-        .training(model={"fcnet_hiddens": [64, 64]})
+        The simulator is calibrated from the real race's laps; {scenario.rival} repeats their real
+        strategy. Compare the trained policy with {scenario.hero}'s real strategy and the best fixed
+        pit plan (with push/save tyre management) found by exhaustive search.
+        """
     )
-    
-    algo = config.build_algo()
-    
-    # Try to restore checkpoint
-    checkpoint_path = "models/ppo_f1"
-    model_status = "❌ Model not found (using random policy)"
-    if os.path.exists(checkpoint_path):
-        try:
-            algo.restore(checkpoint_path)
-            model_status = "✅ PPO Agent Loaded"
-        except Exception as e:
-            model_status = f"⚠️ Load failed: {e}"
-            
-    env = F1GymEnv()
-    obs, _ = env.reset()
-    
-    return F1GymEnv, PPOConfig, algo, config, env, model_status, obs, os, ray
+    return evaluation, policy, scenario
+
 
 @app.cell
-def __(model_status, mo):
-    mo.md(f"**Status:** {model_status}")
-    return
-
-@app.cell
-def __(mo):
-    step_btn = mo.ui.button(label="🏁 Race Step")
-    reset_btn = mo.ui.button(label="🔄 Reset Race")
-    return reset_btn, step_btn
-
-@app.cell
-def __(algo, env, mo, obs, reset_btn, step_btn):
-    # State mapping
-    # Marimo cells are reactive. We need to manage state carefully.
-    # For a simple dashboard, we'll just run one step per click in this cell context 
-    # but Marimo statelessness makes "looping" hard without `mo.state`.
-    # Let's use static globals for this simple demo or re-instantiate.
-    # Better: Use mo.get_state for persistent simulation.
-    
-    get_state, set_state = mo.state(None)
-    
-    current_obs = get_state() if get_state() is not None else obs
-    
-    if reset_btn.value:
-        current_obs, _ = env.reset()
-        set_state(current_obs)
-        message = "Race Reset."
-    elif step_btn.value:
-        # Compute Action
-        action = algo.compute_single_action(current_obs)
-        
-        # Step Env
-        current_obs, reward, done, _, info = env.step(action)
-        set_state(current_obs)
-        
-        action_map = {0: "StayOut", 1: "PUSH", 2: "SAVE", 3: "PIT_SOFT", 4: "PIT_MEDIUM", 5: "PIT_HARD"}
-        message = f"Action: **{action_map[action]}** | Reward: {reward:.2f}"
-            
-        if done:
-            message += " | 🏁 RACE FINISHED!"
+def _(evaluation, mo, pd):
+    if evaluation is None:
+        table = mo.md("Run `f1-mlops evaluate` for averages over many races.")
     else:
-        message = "Ready to race."
-
-    return action_map, step_btn, current_obs, get_state, message, set_state
-
-@app.cell
-def __(env, message, mo):
-    mo.md(message)
-    
-    # Visualize State
-    # Fetch internal state from env (cheating a bit for dashboard)
-    drivers = env.sim.get_drivers()
-    hero = drivers["HAM"]
-    rival = drivers["VER"]
-    
-    stat_list = [
-        {"Metric": "Lap", "Value": hero.lap_number},
-        {"Metric": "Position", "Value": hero.position},
-        {"Metric": "Gap to Leader", "Value": f"{hero.gap_to_leader:.2f}s"},
-        {"Metric": "Tyre Age", "Value": hero.tyre_age},
-        {"Metric": "Tyre Compound", "Value": str(hero.tyre_compound).split('.')[-1]},
-        {"Metric": "Last Lap", "Value": f"{hero.last_lap_time:.2f}s"},
-    ]
-    
-    import pandas as pd
-    df = pd.DataFrame(stat_list)
-    
-    return df, drivers, hero, rival
-
-@app.cell
-def __(df, mo):
-    mo.ui.table(df)
+        table = mo.vstack([
+            mo.md(f"### Averages over {evaluation['races']} simulated races "
+                  f"(real gap: {evaluation['real_gap_to_rival']:+.1f} s)"),
+            mo.ui.table(pd.DataFrame([
+                {"strategy": name, "plan": r["strategy"],
+                 "race time (s)": round(r["mean_race_time"], 1),
+                 "gap to rival (s)": round(r["mean_gap_to_rival"], 1),
+                 "win rate": r["win_rate"]}
+                for name, r in evaluation["strategies"].items()
+            ]), selection=None),
+        ])
+    table
     return
 
+
+@app.cell
+def _(mo, scenario, search_fixed_plans):
+    with mo.status.spinner("Searching fixed pit plans..."):
+        best_plan = search_fixed_plans(scenario, range(50), manage_tyres=True)[0][0]
+    seed = mo.ui.slider(0, 999, value=0, label="Simulated race (seed)", full_width=True)
+    seed
+    return best_plan, seed
+
+
+@app.cell
+def _(best_plan, pd, plan_chooser, policy, policy_chooser, run_race, scenario, seed):
+    strategies = {
+        "trained policy": policy_chooser(policy),
+        "real strategy": plan_chooser(scenario, scenario.real_plan(scenario.hero)),
+        "best fixed plan": plan_chooser(scenario, best_plan),
+    }
+    runs = {name: run_race(scenario, choose, seed.value, trace=True)
+            for name, choose in strategies.items()}
+    laps = pd.concat(
+        [pd.DataFrame(r["laps"]).assign(strategy=name) for name, r in runs.items()],
+        ignore_index=True,
+    )
+    return laps, runs
+
+
+@app.cell
+def _(mo, runs, scenario):
+    mo.hstack([
+        mo.stat(f"{r['race_time'] / 60:.0f} min {r['race_time'] % 60:.1f} s", label=name,
+                caption=f"P{r['position']}, {r['gap_to_rival']:+.1f} s to {scenario.rival}")
+        for name, r in runs.items()
+    ])
+    return
+
+
+@app.cell
+def _(laps, px, scenario):
+    gap = px.line(laps, x="lap", y="gap_to_rival", color="strategy",
+                  labels={"gap_to_rival": f"Gap to {scenario.rival} (s, below 0 = ahead)"},
+                  title=f"{scenario.hero}'s gap to {scenario.rival}")
+    gap.add_hline(y=0, line_dash="dot", line_color="grey")
+    gap
+    return
+
+
+@app.cell
+def _(laps, px):
+    # Pit laps are ~23 s slower; clip them so tyre wear stays visible.
+    clipped = laps.assign(lap_time=laps["lap_time"].clip(upper=laps["lap_time"].median() + 4))
+    times = px.line(clipped, x="lap", y="lap_time", color="strategy",
+                    labels={"lap_time": "Lap time (s, pit laps clipped)"}, title="Lap times")
+    times
+    return
+
+
+@app.cell
+def _(laps, px):
+    decisions = px.scatter(
+        laps, x="lap", y="strategy", color="action", symbol="compound",
+        category_orders={"action": ["STAY", "SAVE", "PUSH"]},
+        title="Decisions each lap (colour) and tyre fitted after the lap (symbol)",
+    )
+    decisions.update_traces(marker_size=9)
+    decisions
+    return
+
+
+if __name__ == "__main__":
+    app.run()

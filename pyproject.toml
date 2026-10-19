@@ -1,30 +1,46 @@
 [build-system]
-requires = ["maturin>=1.5,<2.0"]
+requires = ["maturin>=1.9,<2.0"]
 build-backend = "maturin"
-
-[tool.maturin]
-manifest-path = "backend/Cargo.toml"
-features = ["pyo3/extension-module"]
 
 [project]
 name = "f1-mlops"
-version = "0.1.0"
-description = "F1 MLOps - Race Strategy Optimization with RL"
+version = "0.2.0"
+description = "F1 pit-strategy reinforcement learning on a race simulator calibrated from FastF1 data"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastf1",
-    "feast",
-    "gymnasium",
-    "marimo",
-    "maturin",
-    "modin[all]",
+    "fastf1>=3.4",
+    "gymnasium>=1.0",
+    "marimo>=0.10",
+    "numpy",
     "pandas",
     "plotly",
-    "polars",
-    "ray[rllib]",
-    "scikit-learn",
-    "setuptools-rust",
-    "torch",
     "pyarrow",
+    "torch>=2.5",
 ]
+
+[project.scripts]
+f1-mlops = "f1_mlops.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.maturin]
+manifest-path = "backend/Cargo.toml"
+module-name = "f1_mlops._sim"
+
+[tool.uv]
+# Rebuild the Rust extension when its sources change.
+cache-keys = [{ file = "pyproject.toml" }, { file = "backend/Cargo.toml" }, { file = "backend/src/**/*.rs" }]
+
+# The policy network is tiny; CPU torch avoids ~6 GB of CUDA libraries.
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,45 @@
+{
+  "race": {
+    "year": 2021,
+    "event": "Spanish Grand Prix",
+    "total_laps": 66
+  },
+  "hero": "HAM",
+  "rival": "VER",
+  "races": 200,
+  "real_gap_to_rival": -15.84100000000035,
+  "strategies": {
+    "real": {
+      "strategy": "lap 28 -> MEDIUM, lap 42 -> MEDIUM",
+      "mean_race_time": 5378.74345877652,
+      "sd_race_time": 3.739131685342322,
+      "mean_gap_to_rival": -24.496413184624952,
+      "win_rate": 1.0,
+      "rule_violations": 0
+    },
+    "best_fixed": {
+      "strategy": "lap 21 -> MEDIUM, lap 44 -> MEDIUM",
+      "mean_race_time": 5373.494591717196,
+      "sd_race_time": 4.036295955180417,
+      "mean_gap_to_rival": -30.845713971794552,
+      "win_rate": 1.0,
+      "rule_violations": 0
+    },
+    "best_fixed_managed": {
+      "strategy": "lap 14 -> MEDIUM, lap 40 -> MEDIUM (+ push/save)",
+      "mean_race_time": 5363.570850153922,
+      "sd_race_time": 3.7630220610492295,
+      "mean_gap_to_rival": -39.806763801904786,
+      "win_rate": 1.0,
+      "rule_violations": 0
+    },
+    "ppo": {
+      "strategy": "trained policy",
+      "mean_race_time": 5363.401442009929,
+      "sd_race_time": 3.7225807043036796,
+      "mean_gap_to_rival": -40.10342784942276,
+      "win_rate": 1.0,
+      "rule_violations": 0
+    }
+  }
+}
